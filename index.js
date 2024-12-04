@@ -14,6 +14,12 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
+const data = require('./data.json');
+
+app.get('/json', (req, res) => {
+  console.log('hh')
+  res.status(200).json(data); // Send JSON data as response
+});
 // Database Connection
 
 const connectDb = async () => {
@@ -31,15 +37,7 @@ connectDb();
 // API Routes
 app.use('/api', userRoutes);
 
-app.post('/test', async (req, res, next) => {
-  try {
-    console.log("Testing");
-    res.status(200).send({ message: "Test endpoint" });
-  } catch (error) {
-    console.log(error?.message);
-    next(error);
-  }
-});
+
 
 app.get('/vulnerabilities', async (req, res) => {
   try {
