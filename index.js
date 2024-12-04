@@ -14,11 +14,14 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-const data = require('./data.json');
+const data = {
+  MessageChannel : 'message-channel',
+  navigator : 'https',
+};
 
 app.get('/json', (req, res) => {
   console.log('hh')
-  res.status(200).json(data); // Send JSON data as response
+  res.status(200).json(data); 
 });
 // Database Connection
 
