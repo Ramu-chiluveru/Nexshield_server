@@ -31,6 +31,10 @@ connectDb();
 // API Routes
 app.use('/api', userRoutes);
 
+app.post("/test",async(req, res, next) => {
+  res.send({"message" : "Test endpoint"});
+});
+
 app.get('/vulnerabilities', async (req, res) => {
   try {
       const vulnerabilities = await vulnerabilityModel.find();
