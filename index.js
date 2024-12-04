@@ -73,7 +73,7 @@ app.get('/vulnerabilities', async (req, res) => {
 //   .catch(err => console.log('Error: ',err));
 // });
 
-cron.schedule('*/1 * * * *', async () => {
+cron.schedule('0 6 * * *', async () => {
   console.log('Running scraper...');
   const vulnerabilities = await scrapeVulnerabilities();
   await sendEmail();
