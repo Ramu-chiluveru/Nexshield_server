@@ -23,21 +23,19 @@ app.get('/json', (req, res) => {
   console.log('hh')
   res.status(200).json(data); 
 });
-// Database Connection
 
 const connectDb = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI);
-    console.log("Server connected to db"); // Changed log message
+    console.log("Server connected to db"); 
   } catch (error) {
-    console.log("Server not connected to db"); // Changed log message
+    console.log("Server not connected to db"); 
   }
 };
 
 connectDb();
 
 
-// API Routes
 app.use('/api', userRoutes);
 
 

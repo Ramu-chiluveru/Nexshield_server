@@ -1,6 +1,5 @@
 const mongoose = require("mongoose");
 
-// Define the User schema
 const userModel = new mongoose.Schema(
   {
     email: {
@@ -14,11 +13,11 @@ const userModel = new mongoose.Schema(
     },
     notificationReceive: {
       type: Boolean,
-      default: true, // Default is to receive notifications
+      default: true, 
     },
     organisationNames: {
-      type: [String], // Array of strings
-      default: [], // Default is an empty array
+      type: [String], 
+      default: [], 
     },
     subscriptionStatus: {
       type: String,
