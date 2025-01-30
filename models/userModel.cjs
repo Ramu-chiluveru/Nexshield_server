@@ -5,7 +5,9 @@ const userModel = new mongoose.Schema(
     email: {
       type: String,
       required: true,
-      unique: true
+      unique: true,
+      lowercase: true,
+      trim: true,
     },
     password: {
       type: String,
@@ -15,23 +17,30 @@ const userModel = new mongoose.Schema(
       type: Boolean,
       default: true, 
     },
-    organisationNames: {
-      type: [String], 
-      default: [], 
+    organisationName: {
+      type: String, 
+      default: "", 
+      trim: true,
     },
     subscriptionStatus: {
-      type: String,
-      type: Boolean,
-      default: "false"
+      type: Boolean,  
+      default: false,
+    },
+    keywords: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: function (arr) {
+          return arr.length <= 20; 
+        },
+        message: "You can only add up to 20 keywords.",
+      },
     },
   },
   {
     timestamps: true, 
   }
 );
-
-
-
 
 const User = mongoose.model("User", userModel);
 

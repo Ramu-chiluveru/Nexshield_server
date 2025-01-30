@@ -1,17 +1,20 @@
 const nodemailer = require('nodemailer');
 const dotenv = require("dotenv");
 const mongoose = require("mongoose");
+
 dotenv.config();
 
-const Vulnerability = require('../models/vulnerabilityModel.cjs'); 
-const User = require('../models/userModel.cjs'); 
+const Vulnerability = require('../models/vulnerabilityModel.cjs');
+const User = require('../models/userModel.cjs');
+
+// Secure email credentials using environment variables
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 587,
-    secure: false, 
+    secure: false,
     auth: {
-        user: "arunmouli36@gmail.com",
-        pass: "yaxmesdnpveghavc"
+        user: process.env.EMAIL_USER,  // Use environment variable
+        pass: process.env.EMAIL_PASS   // Use environment variable
     }
 });
 
@@ -20,7 +23,6 @@ exports.sendEmail = async () => {
 
     try {
         const vulnerabilities = await Vulnerability.find({ sent: false });
-
         if (vulnerabilities.length === 0) {
             console.log("No vulnerabilities to send.");
             return;
@@ -34,35 +36,52 @@ exports.sendEmail = async () => {
         }
 
         for (let vulnerability of vulnerabilities) {
-            let emailContent = "Subject: New Vulnerabilities Detected\n\n";
-            emailContent += "Dear User,\n\n";
-            emailContent += "The following vulnerabilities have been detected:\n\n";
-            emailContent += `Title: ${vulnerability.cveId || 'N/A'}\n`;
-            emailContent += `Link: ${vulnerability.link || 'N/A'}\n`;
-            emailContent += `Description: ${vulnerability.description || 'N/A'}\n`;
-            emailContent += `Published Date: ${vulnerability.published_date || 'N/A'}\n`;
-            emailContent += `CVSS Score: ${vulnerability.cvss_score || 'N/A'}\n\n`;
-            emailContent += "Best regards,\nNEXSHIELD Team";
+            const emailContent = `
+                Dear User,
 
-            for (let user of users) {
-                try {
-                    let info = await transporter.sendMail({
-                        from: "arunmouli36@gmail.com",
-                        to: user.email,
-                        subject: 'New Vulnerabilities Detected',
-                        text: emailContent
-                    });
+                The following vulnerability has been detected:
 
-                    console.log(`Email sent successfully to ${user.email}:`, info.messageId);
+                - Title: ${vulnerability.cveId || 'N/A'}
+                - Link: ${vulnerability.link || 'N/A'}
+                - Description: ${vulnerability.description || 'N/A'}
+                - Published Date: ${vulnerability.published_date || 'N/A'}
+                - CVSS Score: ${vulnerability.cvss_score || 'N/A'}
 
-                    vulnerability.sent = true;
-                    await vulnerability.save(); 
+                Best regards,
+                NEXSHIELD Team
+            `;
 
-                    console.log(`Vulnerability ${vulnerability._id} marked as sent.`);
-                } catch (error) {
-                    console.error("Error sending email for vulnerability:", vulnerability._id, "to user:", user.email, error);
+            // Send emails to relevant users
+            const emailPromises = users.map(async (user) => {
+                // Keyword filtering logic
+                if (
+                    user.keywords.length === 0 ||  // Send to users without keywords
+                    user.keywords.some(keyword =>
+                        (vulnerability.description && vulnerability.description.toLowerCase().includes(keyword.toLowerCase())) ||
+                        (vulnerability.cveId && vulnerability.cveId.toLowerCase().includes(keyword.toLowerCase()))
+                    )
+                ) {
+                    try {
+                        const info = await transporter.sendMail({
+                            from: process.env.EMAIL_USER,
+                            to: user.email,
+                            subject: 'New Vulnerability Detected',
+                            text: emailContent
+                        });
+
+                        console.log(`Email sent successfully to ${user.email}:`, info.messageId);
+                    } catch (error) {
+                        console.error(`Failed to send email to ${user.email}:`, error);
+                    }
                 }
-            }
+            });
+
+            await Promise.all(emailPromises);
+
+            vulnerability.sent = true;
+            console.log(vulnerabilities)
+            await vulnerability.save();
+            console.log(`Vulnerability ${vulnerability._id} marked as sent.`);
         }
     } catch (error) {
         console.error("Error fetching vulnerabilities or sending emails:", error);
