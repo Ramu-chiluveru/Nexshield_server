@@ -26,10 +26,11 @@ app.get('/json', (req, res) => {
 
 const connectDb = async () => {
   try {
+    console.log(process.env.MONGO_URI);
     await mongoose.connect(process.env.MONGO_URI);
     console.log("Server connected to db"); 
   } catch (error) {
-    console.log("Server not connected to db"); 
+    console.log(error); 
   }
 };
 
@@ -79,6 +80,7 @@ cron.schedule('0 6 * * *', async () => {
 });
 
 app.get('/test', async () => {sendEmail()});
+
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

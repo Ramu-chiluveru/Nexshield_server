@@ -28,7 +28,9 @@ const loginController = expressAsyncHandler(async (req, res) => {
 });
 
 const registerController = expressAsyncHandler(async (req, res) => {
+  
   const { email, password } = req.body;
+  console.log("registering user  `{email}`");
 
   if (!email || !password) {
     res.status(404).json({ message: "All necessary input fields have not been filled" });
