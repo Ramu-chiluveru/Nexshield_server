@@ -26,7 +26,6 @@ app.get('/json', (req, res) => {
 
 const connectDb = async () => {
   try {
-    console.log(process.env.MONGO_URI);
     await mongoose.connect(process.env.MONGO_URI);
     console.log("Server connected to db"); 
   } catch (error) {
@@ -43,7 +42,7 @@ app.use('/api', userRoutes);
 
 app.get('/vulnerabilities', async (req, res) => {
   try {
-      const vulnerabilities = await vulnerabilityModel.find();
+      const vulnerabilities = await vulnerabilityModel.find().sort({ publishedDate: -1 }); // newest first
       res.json(vulnerabilities);
   } catch (err) {
       res.status(500).json({ error: 'Error fetching vulnerabilities' });
@@ -72,7 +71,7 @@ app.get('/vulnerabilities', async (req, res) => {
 //   .catch(err => console.log('Error: ',err));
 // });
 
-cron.schedule('0 6 * * *', async () => {
+cron.schedule('0 12 * * *', async () => {
   console.log('Running scraper...');
   const vulnerabilities = await scrapeVulnerabilities();
   await sendEmail();

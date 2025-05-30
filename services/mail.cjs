@@ -1,3 +1,6 @@
+const Vulnerability = require('../models/vulnerabilityModel.cjs');
+const User = require('../models/userModel.cjs');
+
 exports.sendEmail = async () => {
     console.log("Fetching un-sent vulnerabilities...");
 
@@ -26,7 +29,9 @@ exports.sendEmail = async () => {
             );
 
             if (eligibleUsers.length === 0) {
-                console.log(`No eligible users for vulnerability ${vulnerability.cveId}`);
+                console.log(`No eligible users for vulnerability ${vulnerability}`);
+                vulnerability.sent = true;
+                await vulnerability.save();
                 continue;
             }
 
@@ -40,6 +45,7 @@ exports.sendEmail = async () => {
                 - Description: ${vulnerability.description || 'N/A'}
                 - Published Date: ${vulnerability.publishedDate || 'N/A'}
                 - Severity: ${vulnerability.severity || 'N/A'}
+                - Organisation: ${vulnerability.companyName || 'N/A'}
 
                 Best regards,
                 NEXSHIELD Team

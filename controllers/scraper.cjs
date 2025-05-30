@@ -4,6 +4,9 @@ const mongoose = require('mongoose');
 const vulnerabilityModel = require('../models/vulnerabilityModel.cjs');
 require('dotenv').config();
 
+// Utility sleep function
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 // Function to prepare LLM prompt
 const createPrompt = (description) => `
 You are a cybersecurity assistant helping extract structured fields from vulnerability descriptions.
@@ -21,21 +24,23 @@ Output as JSON:
 // Function to call HuggingFace API with LLM
 async function callLLM(prompt) {
     try {
-        const response = await axios.post(
-            'https://api-inference.huggingface.co/models/mistralai/Mixtral-8x7B-Instruct-v0.1',
-            { inputs: prompt },
-            {
-                headers: {
-                    Authorization: `Bearer ${process.env.HF_TOKEN}`,
-                    'Content-Type': 'application/json'
-                },
-                timeout: 30000
-            }
-        );
-        // Hugging Face models usually return a text response
-        const textOutput = response.data?.[0]?.generated_text || '{}';
+        const response = axios.post(
+    'https://api-inference.huggingface.co/models/tiiuae/falcon-7b-instruct',
+    { inputs: prompt },
+    {
+        headers: {
+        Authorization: `Bearer ${process.env.HF_TOKEN}`,
+        'Content-Type': 'application/json'
+        }
+    }
+    ).then(res => {
+        console.log(res.data);
+    }).catch(err => {
+        console.error("HuggingFace error:", err.response?.data || err.message);
+    });
 
-        // Try parsing JSON from the text output
+
+        const textOutput = response.data?.choices?.[0]?.text || '{}';
         const match = textOutput.match(/\{[\s\S]*\}/);
         return match ? JSON.parse(match[0]) : {};
     } catch (err) {
@@ -43,6 +48,7 @@ async function callLLM(prompt) {
         return {};
     }
 }
+
 
 exports.scraper = async () => {
     console.log("Running vulnerability scraper...");
@@ -59,7 +65,7 @@ exports.scraper = async () => {
 
         let vulnerabilities = [];
 
-        latestVulnsArea.find('li').each(async (index, item) => {
+        latestVulnsArea.find('li').each((index, item) => {
             const titleElement = $(item).find('a[id^="cveDetailAnchor-"]');
             const link = "https://nvd.nist.gov" + titleElement.attr('href') || '#';
             const description = $(item).find('p').text().trim() || 'No description available';
@@ -71,7 +77,7 @@ exports.scraper = async () => {
             const cvssScoreElement = $(item).find('span[id^="cvss3-link-"]');
             const cvssScore = cvssScoreElement.text().trim() || 'N/A';
 
-            const cveId = title;
+            const cveId = titleElement.text().trim();
             const severity = cvssScore.includes("HIGH") ? "HIGH" :
                              cvssScore.includes("MEDIUM") ? "MEDIUM" : "LOW";
 
@@ -87,25 +93,35 @@ exports.scraper = async () => {
 
         let newVulnerabilities = [];
 
+        // Filter out already existing entries first to reduce LLM calls
+        let filteredVulnerabilities = [];
         for (const vuln of vulnerabilities) {
             const exists = await vulnerabilityModel.findOne({ cveId: vuln.cveId });
-            if (!exists) {
-                // 🔍 Enrich with LLM
-                const prompt = createPrompt(vuln.description);
-                const llmOutput = await callLLM(prompt);
+            if (!exists) filteredVulnerabilities.push(vuln);
+        }
 
-                const enrichedVuln = {
-                    cveId: vuln.cveId,
-                    companyName : llmOutput.companyName || "",
-                    link : vuln.link,
-                    description :llmOutput.summary || "",
-                    severity : vuln.severity,
-                    publishedDate: publishedDate,
-                };
+        for (let i = 0; i < filteredVulnerabilities.length; i++) {
+            const vuln = filteredVulnerabilities[i];
 
-                const createdVuln = await vulnerabilityModel.create(enrichedVuln);
-                newVulnerabilities.push(createdVuln);
+            // ⏱ Rate limiting: 3 requests per second
+            if (i > 0 && i % 3 === 0) {
+                await sleep(1000); // wait 1 second every 3 requests
             }
+
+            const prompt = createPrompt(vuln.description);
+            const llmOutput = await callLLM(prompt);
+
+            const enrichedVuln = {
+                cveId: vuln.cveId,
+                companyName: llmOutput.companyName || "N/A",
+                link: vuln.link,
+                description: llmOutput.summary || vuln.description,
+                severity: vuln.severity,
+                publishedDate: vuln.publishedDate,
+            };
+
+            const createdVuln = await vulnerabilityModel.create(enrichedVuln);
+            newVulnerabilities.push(createdVuln);
         }
 
         console.log("Scraping completed. New vulnerabilities added:", newVulnerabilities.length);
