@@ -19,6 +19,16 @@ const data = {
   navigator : 'https',
 };
 
+app.use(express.static(path.join(__dirname, '../Nexshield_frontend/dist')));
+
+// API routes here
+// e.g., app.use('/api', apiRoutes);
+
+// Catch-all route to serve index.html for client-side routing
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../Nexshield_frontend/dist/index.html'));
+});
+
 app.get('/json', (req, res) => {
   console.log('hh')
   res.status(200).json(data); 
