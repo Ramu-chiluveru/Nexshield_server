@@ -4,10 +4,8 @@ const mongoose = require('mongoose');
 const vulnerabilityModel = require('../models/vulnerabilityModel.cjs');
 require('dotenv').config();
 
-// Utility sleep function
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Function to prepare LLM prompt
 const createPrompt = (description) => `
 You are a cybersecurity assistant helping extract structured fields from vulnerability descriptions.
 
@@ -21,7 +19,6 @@ Output as JSON:
 }
 `;
 
-// Function to call HuggingFace API with LLM
 async function callLLM(prompt) {
     try {
         const response = axios.post(
@@ -49,7 +46,6 @@ async function callLLM(prompt) {
     }
 }
 
-
 exports.scraper = async () => {
     console.log("Running vulnerability scraper...");
 
@@ -63,69 +59,56 @@ exports.scraper = async () => {
             return [];
         }
 
-        let vulnerabilities = [];
+        const vulnerabilities = [];
+        const items = latestVulnsArea.find('li');
 
-        latestVulnsArea.find('li').each((index, item) => {
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
             const titleElement = $(item).find('a[id^="cveDetailAnchor-"]');
-            const link = "https://nvd.nist.gov" + titleElement.attr('href') || '#';
+            const cveId = titleElement.text().trim();
+            const link = "https://nvd.nist.gov" + (titleElement.attr('href') || '#');
             const description = $(item).find('p').text().trim() || 'No description available';
 
-            let rawPublishedDate = description.includes("Published:") ? description.split("Published:").pop().trim() : 'N/A';
-            rawPublishedDate = rawPublishedDate.split(' V3.1:')[0].trim();
-            const publishedDate = new Date(rawPublishedDate);
+            let rawPublishedDate = 'N/A';
+            if (description.includes("Published:")) {
+                rawPublishedDate = description.split("Published:").pop().trim().split(' V3.1:')[0].trim();
+            }
+            const publishedDate = rawPublishedDate !== 'N/A' ? new Date(rawPublishedDate) : null;
 
             const cvssScoreElement = $(item).find('span[id^="cvss3-link-"]');
             const cvssScore = cvssScoreElement.text().trim() || 'N/A';
-
-            const cveId = titleElement.text().trim();
             const severity = cvssScore.includes("HIGH") ? "HIGH" :
                              cvssScore.includes("MEDIUM") ? "MEDIUM" : "LOW";
 
-            vulnerabilities.push({
-                link,
-                description,
-                cvssScore,
-                publishedDate,
-                cveId,
-                severity
-            });
-        });
 
-        let newVulnerabilities = [];
+            // Check if already in DB
+            const exists = await vulnerabilityModel.findOne({ cveId });
+            if (!exists) {
+                 const prompt = createPrompt(description);
+                const llmOutput = await callLLM(prompt);
 
-        // Filter out already existing entries first to reduce LLM calls
-        let filteredVulnerabilities = [];
-        for (const vuln of vulnerabilities) {
-            const exists = await vulnerabilityModel.findOne({ cveId: vuln.cveId });
-            if (!exists) filteredVulnerabilities.push(vuln);
-        }
-
-        for (let i = 0; i < filteredVulnerabilities.length; i++) {
-            const vuln = filteredVulnerabilities[i];
-
-            // ⏱ Rate limiting: 3 requests per second
-            if (i > 0 && i % 3 === 0) {
-                await sleep(1000); // wait 1 second every 3 requests
+                const enrichedVuln = {
+                    cveId,
+                    companyName: llmOutput.companyName || "N/A",
+                    link,
+                    description: llmOutput.summary || description,
+                    severity,
+                    publishedDate,
+                    cvssScore
+                };
+                const created = await vulnerabilityModel.create(enrichedVuln);
+                vulnerabilities.push(created);
+                console.log(`✅ Added: ${cveId}`);
+            } else {
+                console.log(`⚠️ Already exists: ${cveId}`);
             }
 
-            const prompt = createPrompt(vuln.description);
-            const llmOutput = await callLLM(prompt);
-
-            const enrichedVuln = {
-                cveId: vuln.cveId,
-                companyName: llmOutput.companyName || "N/A",
-                link: vuln.link,
-                description: llmOutput.summary || vuln.description,
-                severity: vuln.severity,
-                publishedDate: vuln.publishedDate,
-            };
-
-            const createdVuln = await vulnerabilityModel.create(enrichedVuln);
-            newVulnerabilities.push(createdVuln);
+            if ((i + 1) % 3 === 0) await sleep(1000);
+            else await sleep(350);
         }
 
-        console.log("Scraping completed. New vulnerabilities added:", newVulnerabilities.length);
-        return JSON.stringify(newVulnerabilities, null, 4);
+        console.log(`Scraping completed. New vulnerabilities added: ${vulnerabilities.length}`);
+        return vulnerabilities;
 
     } catch (error) {
         console.error("Error during scraping:", error.message);
