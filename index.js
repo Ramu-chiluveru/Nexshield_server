@@ -22,7 +22,7 @@ app.use(express.json());
 app.use(cors());
 
 // Serve static files from the Vite-built frontend
-app.use(express.static(path.join(__dirname, '../Nexshield_frontend/dist')));
+// app.use(express.static(path.join(__dirname, '../Nexshield_frontend/dist')));
 
 // API route to test JSON response
 app.get('/json', (req, res) => {
@@ -56,8 +56,7 @@ app.get('/vulnerabilities', async (req, res) => {
 });
 
 // Schedule scraping and email every minute (adjust for prod)
-cron.schedule('*/1 * * * *', async () => {
-  console.log('Running scraper...');
+cron.schedule('* 6 * * *', async () => {
   const vulnerabilities = await scrapeVulnerabilities();
   await sendEmail(vulnerabilities);
 });

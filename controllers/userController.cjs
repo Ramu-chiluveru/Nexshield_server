@@ -2,11 +2,13 @@ const express = require("express");
 const userModel = require("../models/userModel.cjs");
 const expressAsyncHandler = require("express-async-handler");
 const generateToken = require("../config/generateToken.cjs");
-const bcrypt = require('bcryptjs');  
-const jsonMiddleware = express.json();
+const bcrypt = require("bcryptjs");
 
+// LOGIN CONTROLLER
 const loginController = expressAsyncHandler(async (req, res) => {
   const { email, password } = req.body;
+
+  console.log(`Requested for login: ${email}`);
 
   if (!email || !password) {
     return res.status(400).json({ message: "Email and password are required." });
@@ -19,7 +21,7 @@ const loginController = expressAsyncHandler(async (req, res) => {
       _id: user._id,
       email: user.email,
       isAdmin: user.isAdmin,
-      token: generateToken(user._id), 
+      token: generateToken(user._id),
     };
     res.status(200).json(response);
   } else {
@@ -27,10 +29,10 @@ const loginController = expressAsyncHandler(async (req, res) => {
   }
 });
 
+// REGISTER CONTROLLER (fixed with password hashing)
 const registerController = expressAsyncHandler(async (req, res) => {
-  
   const { email, password } = req.body;
-  console.log("registering user  `{email}`");
+  console.log(`Registering user: ${email}`);
 
   if (!email || !password) {
     res.status(404).json({ message: "All necessary input fields have not been filled" });
@@ -43,7 +45,11 @@ const registerController = expressAsyncHandler(async (req, res) => {
     return;
   }
 
-  const user = await userModel.create({ email, password });
+  // ✅ Hash the password before saving
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(password, salt);
+
+  const user = await userModel.create({ email, password: hashedPassword });
 
   if (user) {
     res.status(201).json({
@@ -52,12 +58,12 @@ const registerController = expressAsyncHandler(async (req, res) => {
       isAdmin: user.isAdmin,
       token: generateToken(user._id),
     });
-    
   } else {
     res.status(400).json({ message: "Registration failed" });
   }
 });
 
+// FETCH ALL USERS CONTROLLER
 const fetchAllUsersController = expressAsyncHandler(async (req, res) => {
   const keyword = req.query.search
     ? {
@@ -71,6 +77,8 @@ const fetchAllUsersController = expressAsyncHandler(async (req, res) => {
   const users = await userModel.find(keyword).find({ _id: { $ne: req.user._id } });
   res.send(users);
 });
+
+// ADD KEYWORDS CONTROLLER
 const addKeywordsController = expressAsyncHandler(async (req, res) => {
   const { userId, keywords } = req.body;
 
@@ -94,20 +102,21 @@ const addKeywordsController = expressAsyncHandler(async (req, res) => {
   }
 
   user.keywords = [...new Set([...user.keywords, ...validKeywords])];
-  
+
   await user.save();
 
   res.status(200).json({ message: "Keywords added successfully", keywords: user.keywords });
 });
 
-
+// EDIT USER CONTROLLER
 const editUserController = expressAsyncHandler(async (req, res) => {
   const { userId, currentPassword, newPassword, email, organisationName, notificationReceive } = req.body;
 
   if (!userId || !currentPassword || !newPassword) {
     return res.status(400).json({ message: "User ID, current password, and new password are required." });
   }
-  console.log(userId, currentPassword, newPassword, email, organisationName, notificationReceive)
+
+  console.log(userId, currentPassword, newPassword, email, organisationName, notificationReceive);
 
   const user = await userModel.findById(userId);
 
@@ -136,14 +145,14 @@ const editUserController = expressAsyncHandler(async (req, res) => {
   if (notificationReceive !== undefined) {
     user.notificationReceive = notificationReceive;
   }
-  console.log(user)
+
+  console.log(user);
   await user.save();
 
   res.status(200).json({ message: "User details updated successfully", user });
 });
 
-
-
+// GET KEYWORDS CONTROLLER
 const getKeywordsController = expressAsyncHandler(async (req, res) => {
   const { userId } = req.params;
   if (!userId) {
@@ -160,7 +169,6 @@ const getKeywordsController = expressAsyncHandler(async (req, res) => {
 
   res.status(200).json({ keywords: user.keywords });
 });
-
 
 module.exports = {
   loginController,
