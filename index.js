@@ -56,7 +56,7 @@ app.get('/vulnerabilities', async (req, res) => {
 });
 
 // Schedule scraping and email every minute (adjust for prod)
-cron.schedule('* 6 * * *', async () => {
+cron.schedule('* 12 * * *', async () => {
   const vulnerabilities = await scrapeVulnerabilities();
   await sendEmail(vulnerabilities);
 });
